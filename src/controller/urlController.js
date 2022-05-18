@@ -37,27 +37,35 @@ const GET_ASYNC = promisify(redisClient.GET).bind(redisClient);
 
 const createUrl = async (req, res) => {
     try {
-        if (Object.keys(req.body).length == 0 || Object.keys(req.body).length > 1)
+        if (Object.keys(req.body).length == 0)
             return res.status(400).send({ status: false, message: "Invalid request parameters" })
 
         let longUrl = req.body.longUrl
 
+        // ---------validating longUrl---------
         if (!longUrl) return res.status(400).send({ status: false, message: "Please provide a longUrl" })
         if (!isValidUrl(longUrl)) return res.status(400).send({ status: false, message: "Invalid URL" })
 
-        let isURLPresent = await urlModel.findOne({ longUrl })
+        // ---------finding urlData in cache-------
+        const cacheUrlData = await GET_ASYNC(`${longUrl}`)
+        if (cacheUrlData) return res.status(200).send({ status: true, data: JSON.parse(cacheUrlData) })
+
+        // ---------finding urlData in DB----------
+        let isURLPresent = await urlModel.findOne({ longUrl }).select({ _id: 0, longUrl: 1, shortUrl: 1, urlCode: 1 })
         if (isURLPresent) {
+            // -------setting urlData in cache-------
             await SET_ASYNC(`${longUrl}`, JSON.stringify(isURLPresent))
-            return res.status(200).send({ status: true, message: "shortUrl for this longUrl is already present in DB" })
+            return res.status(200).send({ status: true, data: isURLPresent })
         }
 
+        // ----------creating urlCode and shortUrl-------
         let baseUrl = 'http://localhost:3000'
         let urlCode = shortId.generate().toLowerCase()
         let shortUrl = baseUrl + '/' + urlCode
 
         await urlModel.create({ longUrl, shortUrl, urlCode })
 
-        res.status(201).send({ status: true, message: "url created successfully", longUrl,shortUrl,urlCode })
+        res.status(201).send({ status: true, message: "url created successfully", longUrl, shortUrl, urlCode })
     }
     catch (err) {
         res.status(500).send({ Error: err.message })
@@ -70,19 +78,18 @@ const getUrl = async (req, res) => {
     try {
         let urlCode = req.params.urlCode
 
-        let urlDataFromCache = await GET_ASYNC(`${urlCode}`)
-        if (urlDataFromCache) {
-            console.log("redirect from cache")
-            return res.status(302).redirect(JSON.parse(urlDataFromCache).longUrl)
-        }
-        
-        let getLongUrl = await urlModel.findOne({ urlCode })
-        if (!getLongUrl) return res.status(404).send({ status: false, message: "No longUrl found with this urlCode" })
+        // ------finding longUrl in cache--------
+        let urlFromCache = await GET_ASYNC(`${urlCode}`)
+        if (urlFromCache) return res.status(302).redirect(JSON.parse(urlFromCache))
 
-        await SET_ASYNC(`${urlCode}`, JSON.stringify(getLongUrl))
+        // ------finding urlData in DB-------
+        let urlFromDB = await urlModel.findOne({ urlCode })
+        if (!urlFromDB) return res.status(404).send({ status: false, message: "No longUrl found with this urlCode" })
 
-        console.log("redirect from DB")
-        return res.status(302).redirect(getLongUrl.longUrl)
+        // ------setting longUrl in cache-------
+        await SET_ASYNC(`${urlCode}`, JSON.stringify(urlFromDB.longUrl))
+
+        return res.status(302).redirect(urlFromDB.longUrl)
     }
     catch (err) {
         res.status(500).send({ Error: err.message })
