@@ -83,13 +83,13 @@ const getUrl = async (req, res) => {
         if (urlFromCache) return res.status(302).redirect(JSON.parse(urlFromCache))
 
         // ------finding urlData in DB-------
-        let urlFromDB = await urlModel.findOne({ urlCode })
-        if (!urlFromDB) return res.status(404).send({ status: false, message: "No longUrl found with this urlCode" })
+        let urlDataFromDB = await urlModel.findOne({ urlCode })
+        if (!urlDataFromDB) return res.status(404).send({ status: false, message: "No longUrl found with this urlCode" })
 
         // ------setting longUrl in cache-------
-        await SET_ASYNC(`${urlCode}`, JSON.stringify(urlFromDB.longUrl))
+        await SET_ASYNC(`${urlCode}`, JSON.stringify(urlDataFromDB.longUrl))
 
-        return res.status(302).redirect(urlFromDB.longUrl)
+        return res.status(302).redirect(urlDataFromDB.longUrl)
     }
     catch (err) {
         res.status(500).send({ Error: err.message })
