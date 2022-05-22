@@ -52,9 +52,11 @@ const createUrl = async (req, res) => {
 
         // ---------finding urlData in DB----------
         let isURLPresent = await urlModel.findOne({ longUrl }).select({ _id: 0, longUrl: 1, shortUrl: 1, urlCode: 1 })
+        console.log(isURLPresent)
         if (isURLPresent) {
             // -------setting urlData in cache-------
             await SET_ASYNC(`${longUrl}`, JSON.stringify(isURLPresent))
+            
             return res.status(200).send({ status: true, data: isURLPresent })
         }
 
@@ -80,6 +82,7 @@ const getUrl = async (req, res) => {
 
         // ------finding longUrl in cache--------
         let urlFromCache = await GET_ASYNC(`${urlCode}`)
+        console.log("urlFromCache")
         if (urlFromCache) return res.status(302).redirect(JSON.parse(urlFromCache))
 
         // ------finding urlData in DB-------
@@ -88,6 +91,7 @@ const getUrl = async (req, res) => {
 
         // ------setting longUrl in cache-------
         await SET_ASYNC(`${urlCode}`, JSON.stringify(urlDataFromDB.longUrl))
+        console.log("urlDataFromDB.longUrl")
 
         return res.status(302).redirect(urlDataFromDB.longUrl)
     }
